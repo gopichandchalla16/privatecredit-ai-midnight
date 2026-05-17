@@ -1,0 +1,119 @@
+// PrivateCredit AI — Midnight Compact Smart Contract
+// Privacy-preserving credit attestation using ZK proofs
+// Hackathon: Midnight AI Track
+
+pragma language_version 0.14;
+
+import Ledger from '0x0000...Ledger';
+import CompactStandardLibrary from '0x0000...Stdlib';
+
+// ============================================================
+// DATA STRUCTURES
+// ============================================================
+
+// Public attestation stored on-chain (no raw financial data)
+struct CreditAttestation {
+  application_id: Bytes<32>;     // hashed applicant identifier
+  above_threshold: Boolean;      // TRUE if score >= threshold
+  threshold: Uint<8>;            // the minimum score required
+  ai_score_hash: Bytes<32>;      // hash of AI score (not the score itself)
+  lender_id: Bytes<32>;          // which lender requested this
+  timestamp: Uint<64>;           // unix timestamp
+}
+
+// Private witness (never revealed on-chain)
+struct PrivateCreditData {
+  actual_score: Uint<8>;         // real AI score 0-100
+  annual_revenue: Uint<64>;      // borrower revenue
+  debt_amount: Uint<64>;         // outstanding debt
+  secret_nonce: Bytes<32>;       // randomness for ZK binding
+}
+
+// ============================================================
+// LEDGER STATE
+// ============================================================
+
+ledger attestations: Map<Bytes<32>, CreditAttestation>;
+ledger total_attestations: Uint<64>;
+
+// ============================================================
+// CIRCUITS (ZK PROOF LOGIC)
+// ============================================================
+
+// Proves: actual_score >= threshold
+// WITHOUT revealing actual_score
+circuit prove_score_above_threshold(
+  private_data: PrivateCreditData,
+  threshold: Uint<8>
+): Boolean {
+  // ZK constraint: score must be in valid range
+  assert private_data.actual_score >= 0;
+  assert private_data.actual_score <= 100;
+
+  // ZK constraint: prove threshold comparison privately
+  let above: Boolean = private_data.actual_score >= threshold;
+
+  return above;
+}
+
+// Computes hash of private data for on-chain binding
+circuit compute_score_hash(
+  private_data: PrivateCreditData
+): Bytes<32> {
+  return CompactStandardLibrary.hash(
+    private_data.actual_score as Bytes<1> ++
+    private_data.secret_nonce
+  );
+}
+
+// ============================================================
+// TRANSACTIONS
+// ============================================================
+
+// Called by AI backend to store a ZK credit attestation
+export transaction submit_credit_attestation(
+  private_data: PrivateCreditData,    // private witness — NOT stored
+  threshold: Uint<8>,                  // public: minimum score
+  application_id: Bytes<32>,           // public: hashed applicant ID
+  lender_id: Bytes<32>                 // public: lender identifier
+): Void {
+  // Generate ZK proof of score >= threshold
+  let above_threshold: Boolean = prove_score_above_threshold(private_data, threshold);
+
+  // Compute commitment to the private score (hash, not value)
+  let score_hash: Bytes<32> = compute_score_hash(private_data);
+
+  // Build public attestation record
+  let attestation: CreditAttestation = CreditAttestation {
+    application_id: application_id,
+    above_threshold: above_threshold,
+    threshold: threshold,
+    ai_score_hash: score_hash,
+    lender_id: lender_id,
+    timestamp: Ledger.block_timestamp()
+  };
+
+  // Store ONLY the public attestation on-chain
+  // Raw financials and actual score are NEVER stored
+  attestations.insert(application_id, attestation);
+  total_attestations = total_attestations + 1;
+}
+
+// Called by lender to verify a credit attestation
+export transaction verify_attestation(
+  application_id: Bytes<32>
+): CreditAttestation {
+  // Check attestation exists
+  let record: CreditAttestation = attestations.lookup(application_id);
+  return record;
+}
+
+// Called by lender to check if applicant is above their threshold
+export transaction check_approval(
+  application_id: Bytes<32>,
+  lender_threshold: Uint<8>
+): Boolean {
+  let record: CreditAttestation = attestations.lookup(application_id);
+  // Lender can check if the stored threshold >= their own requirement
+  return record.above_threshold && (record.threshold >= lender_threshold);
+}
