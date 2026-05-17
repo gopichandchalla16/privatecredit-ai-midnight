@@ -25,6 +25,8 @@ app.add_middleware(
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
 
 class CreditApplication(BaseModel):
     annual_revenue: float = Field(..., description="Annual revenue in USD", gt=0)
@@ -62,9 +64,9 @@ class AttestationResult(BaseModel):
 SYSTEM_PROMPT = """
 You are an expert private credit risk analyst AI. You analyze business financial data and provide credit risk assessments.
 
-You MUST respond with valid JSON only. No markdown, no extra text.
+You MUST respond with valid JSON only. No markdown, no extra text, no code blocks.
 
-Analyze the financial indicators and return:
+Analyze the financial indicators and return exactly this JSON:
 {
   "score": <integer 0-100, where 100 = lowest risk>,
   "decision": "<APPROVED | REVIEW | REJECTED>",
@@ -88,14 +90,14 @@ Key ratios to consider:
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "PrivateCredit AI", "version": "1.0.0"}
+    return {"status": "healthy", "service": "PrivateCredit AI", "version": "1.0.0", "model": GROQ_MODEL}
 
 
 @app.post("/score", response_model=CreditScore)
 async def score_credit_application(application: CreditApplication):
     """
     Submit a credit application for AI-powered risk scoring.
-    Financial data is processed by AI — only the score hash goes to Midnight.
+    Financial data is processed by AI - only the score hash goes to Midnight.
     """
     debt_to_revenue = application.outstanding_debt / application.annual_revenue
     expense_ratio = (application.monthly_expenses * 12) / application.annual_revenue
@@ -116,12 +118,12 @@ Calculated Ratios:
 - Expense-to-Revenue: {expense_ratio:.2f}
 - Loan-to-Revenue: {loan_to_revenue:.2f}
 
-Provide your credit risk assessment as JSON.
+Respond with JSON only.
 """
 
     try:
         response = client.chat.completions.create(
-            model="llama3-8b-8192",
+            model=GROQ_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}
@@ -131,6 +133,14 @@ Provide your credit risk assessment as JSON.
         )
 
         ai_response = response.choices[0].message.content.strip()
+
+        # Strip markdown code blocks if model wraps response
+        if ai_response.startswith("```"):
+            ai_response = ai_response.split("```")[1]
+            if ai_response.startswith("json"):
+                ai_response = ai_response[4:]
+        ai_response = ai_response.strip()
+
         result = json.loads(ai_response)
 
         raw_data = f"{application.annual_revenue}{application.outstanding_debt}{result['score']}{time.time()}"
@@ -145,8 +155,8 @@ Provide your credit risk assessment as JSON.
             midnight_ready=True
         )
 
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=500, detail="AI response parsing failed")
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=500, detail=f"AI response parsing failed: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
