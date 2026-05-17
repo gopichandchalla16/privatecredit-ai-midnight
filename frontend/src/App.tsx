@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 interface FormData {
   annual_revenue: string
@@ -71,7 +71,7 @@ export default function App() {
       const data = await res.json()
       setResult(data)
     } catch (err) {
-      setError('Failed to connect to backend. Make sure FastAPI is running on port 8000.')
+      setError('Failed to connect to backend. Please try again in a moment.')
     }
     setLoading(false)
   }
@@ -86,7 +86,7 @@ export default function App() {
         body: JSON.stringify({
           score: result.score,
           threshold: 60,
-          application_id: result.zk_attestation_hash  // full 64-char hash
+          application_id: result.zk_attestation_hash
         })
       })
       if (res.ok) setAttested(true)
