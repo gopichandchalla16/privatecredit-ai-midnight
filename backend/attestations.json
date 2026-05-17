@@ -1,0 +1,20 @@
+{
+  "3b7cdd9fe2e85e62": {
+    "above_threshold": true,
+    "zk_proof": "b642f22bd58eb0a19dd71dd784e9c2aa5b0031227dab172be292b83eff3061a2",
+    "on_chain": "a6dd73fc7ff85d41b3e36c4f1bf2346d3661f7936799ed695adcf1173eb4db4e",
+    "timestamp": 1779000726
+  },
+  "8f22985071c6cf8b5376ce6343f532760ed72798b0a51b27cdbbd9dcc9e6f79e": {
+    "above_threshold": false,
+    "zk_proof": "4a824be53ee338f578c7e48764fce7a37d0ca82057777bcfc9fc0702cf9cd381",
+    "on_chain": "cf39e89193b0a34ad8d27e2cd45391dc568ce0ac66e2ce8b8f0eca6802815045",
+    "timestamp": 1779001695
+  },
+  "0eea26efc699ef1d04cb07ff6dce9a3328aa2d33746cbe4b6b4b7d27fb4d9308": {
+    "above_threshold": true,
+    "zk_proof": "daa60983d0bd6f72d033cd0202184987d7342a8a0c49a6255eb6c983a08e4585",
+    "on_chain": "311bfcc9d1c839f010761c3208bdccea715bc9ed9ef341cdf2a5acdd2c3360ca",
+    "timestamp": 1779001831
+  }
+}
