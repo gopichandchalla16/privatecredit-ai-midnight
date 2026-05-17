@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 interface VerifyResult {
   application_id: string
@@ -25,7 +25,6 @@ export default function LenderDashboard() {
     setError('')
     setResult(null)
 
-    // Simulate ZK scan animation delay
     await new Promise(r => setTimeout(r, 1800))
 
     try {
@@ -48,7 +47,6 @@ export default function LenderDashboard() {
 
   return (
     <div style={{ maxWidth: 620, margin: '0 auto', padding: '2rem 1rem' }}>
-      {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#60a5fa' }}>
           🏦 Lender Verification Portal
@@ -63,7 +61,6 @@ export default function LenderDashboard() {
         </div>
       </div>
 
-      {/* How it works */}
       <div style={{ background: '#111118', border: '1px solid #1e3a5f', borderRadius: 10, padding: '1rem', marginBottom: '1.5rem', fontSize: 13, color: '#9ca3af', lineHeight: 1.7 }}>
         <strong style={{ color: '#60a5fa' }}>How ZK Selective Disclosure works:</strong><br />
         The borrower submits their financials privately. The AI scores them and generates a ZK attestation hash.
@@ -71,7 +68,6 @@ export default function LenderDashboard() {
         your credit threshold — nothing else. The score and financials are mathematically inaccessible.
       </div>
 
-      {/* Verify Form */}
       <form onSubmit={handleVerify} style={{ background: '#111118', border: '1px solid #2a2a3e', borderRadius: 12, padding: '1.5rem', marginBottom: '1.5rem' }}>
         <h2 style={{ color: '#93c5fd', marginBottom: '1rem', fontSize: '1rem' }}>🔍 Verify Attestation</h2>
         <label style={{ display: 'block', fontSize: 12, color: '#9ca3af', marginBottom: 6 }}>
@@ -103,7 +99,6 @@ export default function LenderDashboard() {
         </button>
       </form>
 
-      {/* Scanning animation */}
       {scanning && (
         <div style={{
           background: '#0a0f1e', border: '1px solid #1e40af', borderRadius: 10,
@@ -112,19 +107,12 @@ export default function LenderDashboard() {
           <div style={{ fontSize: 32, marginBottom: 8 }}>🌙</div>
           <div style={{ color: '#60a5fa', fontWeight: 700, marginBottom: 4 }}>Querying Midnight ZK Layer...</div>
           <div style={{ color: '#374151', fontSize: 12 }}>Verifying proof without accessing private data</div>
-          <div style={{
-            marginTop: 12, height: 4, background: '#1e3a5f', borderRadius: 2, overflow: 'hidden'
-          }}>
-            <div style={{
-              height: '100%', width: '60%', background: '#3b82f6',
-              borderRadius: 2, animation: 'none',
-              transition: 'width 1.5s ease'
-            }} />
+          <div style={{ marginTop: 12, height: 4, background: '#1e3a5f', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: '60%', background: '#3b82f6', borderRadius: 2 }} />
           </div>
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div style={{
           background: '#2d1a1a', border: '1px solid #f44336', borderRadius: 8,
@@ -134,7 +122,6 @@ export default function LenderDashboard() {
         </div>
       )}
 
-      {/* Result */}
       {result && (
         <div style={{
           background: '#111118',
@@ -143,11 +130,7 @@ export default function LenderDashboard() {
         }}>
           <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
             <div style={{ fontSize: 48 }}>{result.above_threshold ? '✅' : '❌'}</div>
-            <div style={{
-              fontSize: '1.5rem', fontWeight: 900,
-              color: result.above_threshold ? '#00e676' : '#f44336',
-              marginTop: 8
-            }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 900, color: result.above_threshold ? '#00e676' : '#f44336', marginTop: 8 }}>
               {result.message}
             </div>
             <div style={{ color: '#9ca3af', fontSize: 13, marginTop: 4 }}>
@@ -157,7 +140,6 @@ export default function LenderDashboard() {
             </div>
           </div>
 
-          {/* What lender DOES see */}
           <div style={{ background: '#0f1729', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
             <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>What you can verify</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
@@ -174,22 +156,17 @@ export default function LenderDashboard() {
             </div>
           </div>
 
-          {/* What lender CANNOT see */}
           <div style={{ background: '#1a0f0f', border: '1px solid #7f1d1d', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
             <p style={{ fontSize: 11, color: '#ef4444', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>🔒 Cryptographically hidden from you</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
               {['Actual Score', 'Annual Revenue', 'Outstanding Debt', 'Monthly Expenses', 'Loan Amount', 'Financial Ratios'].map(item => (
-                <div key={item} style={{
-                  background: '#2d1a1a', borderRadius: 4, padding: '0.4rem 0.5rem',
-                  fontSize: 11, color: '#6b7280', textAlign: 'center'
-                }}>
+                <div key={item} style={{ background: '#2d1a1a', borderRadius: 4, padding: '0.4rem 0.5rem', fontSize: 11, color: '#6b7280', textAlign: 'center' }}>
                   🚫 {item}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* ZK proof */}
           <div style={{ background: '#0f1729', border: '1px solid #1e3a5f', borderRadius: 8, padding: '0.75rem' }}>
             <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>🌙 Midnight Attestation ID</p>
             <code style={{ fontSize: 11, color: '#60a5fa', wordBreak: 'break-all' }}>{result.application_id}</code>
