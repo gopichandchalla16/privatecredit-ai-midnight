@@ -41,6 +41,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [attested, setAttested] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value })
@@ -85,12 +86,19 @@ export default function App() {
         body: JSON.stringify({
           score: result.score,
           threshold: 60,
-          application_id: result.zk_attestation_hash.slice(0, 16)
+          application_id: result.zk_attestation_hash  // full 64-char hash
         })
       })
       if (res.ok) setAttested(true)
     } catch {}
     setLoading(false)
+  }
+
+  const handleCopyHash = () => {
+    if (!result) return
+    navigator.clipboard.writeText(result.zk_attestation_hash)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -194,9 +202,17 @@ export default function App() {
             ))}
           </div>
 
-          {/* ZK Hash */}
+          {/* ZK Hash with copy button */}
           <div style={{ background: '#0f1729', border: '1px solid #1e3a5f', borderRadius: 8, padding: '0.75rem', marginBottom: '1rem' }}>
-            <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>🔒 ZK Attestation Hash (Midnight-ready)</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>🔒 ZK Attestation Hash (Midnight-ready)</p>
+              <button
+                onClick={handleCopyHash}
+                style={{ background: copied ? '#1a3a1a' : '#1e3a5f', color: copied ? '#00e676' : '#60a5fa', border: 'none', borderRadius: 4, padding: '0.2rem 0.6rem', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
+              >
+                {copied ? '✅ Copied!' : '📋 Copy'}
+              </button>
+            </div>
             <code style={{ fontSize: 11, color: '#60a5fa', wordBreak: 'break-all' }}>{result.zk_attestation_hash}</code>
           </div>
 
@@ -207,9 +223,19 @@ export default function App() {
               🌙 Submit ZK Attestation to Midnight
             </button>
           ) : (
-            <div style={{ background: '#0a2a1a', border: '1px solid #00e676', borderRadius: 8, padding: '0.75rem', textAlign: 'center', color: '#00e676', fontWeight: 700 }}>
-              ✅ ZK Attestation submitted to Midnight blockchain!<br/>
-              <span style={{ fontSize: 12, fontWeight: 400, color: '#9ca3af' }}>Lenders can now verify this credit score without seeing your financials.</span>
+            <div style={{ background: '#0a2a1a', border: '1px solid #00e676', borderRadius: 8, padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ color: '#00e676', fontWeight: 700, marginBottom: 6 }}>
+                ✅ ZK Attestation submitted to Midnight blockchain!
+              </div>
+              <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 8 }}>
+                Lenders can now verify this credit score without seeing your financials.
+              </div>
+              <button
+                onClick={handleCopyHash}
+                style={{ background: copied ? '#1a3a1a' : '#1e3a5f', color: copied ? '#00e676' : '#60a5fa', border: '1px solid #1e40af', borderRadius: 6, padding: '0.4rem 1rem', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
+              >
+                {copied ? '✅ Hash Copied!' : '📋 Copy Hash for Lender'}
+              </button>
             </div>
           )}
         </div>
