@@ -8,6 +8,7 @@ import json
 import hashlib
 import time
 import logging
+from pathlib import Path
 
 load_dotenv()
 
@@ -17,7 +18,7 @@ logger = logging.getLogger("privatecredit")
 app = FastAPI(
     title="PrivateCredit AI API",
     description="Privacy-preserving credit scoring powered by AI + Midnight ZK blockchain",
-    version="1.1.0"
+    version="1.2.0"
 )
 
 app.add_middleware(
@@ -30,8 +31,22 @@ app.add_middleware(
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
-# In-memory attestation store (replace with DB in production)
-attestation_store: dict = {}
+# ─── Persistent attestation store ─────────────────────────────────────────────
+STORE_FILE = Path(__file__).parent / "attestations.json"
+
+def load_store() -> dict:
+    if STORE_FILE.exists():
+        try:
+            return json.loads(STORE_FILE.read_text())
+        except Exception:
+            return {}
+    return {}
+
+def save_store(store: dict) -> None:
+    STORE_FILE.write_text(json.dumps(store, indent=2))
+
+attestation_store: dict = load_store()
+logger.info(f"Loaded {len(attestation_store)} attestation(s) from disk")
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -110,7 +125,6 @@ CRITICAL: Output ONLY the raw JSON object. Start with { and end with }. Nothing 
 
 
 def parse_ai_response(text: str) -> dict:
-    """Strip markdown fences and parse JSON."""
     text = text.strip()
     if text.startswith("```"):
         parts = text.split("```")
@@ -125,7 +139,6 @@ def parse_ai_response(text: str) -> dict:
 
 
 async def call_groq(messages: list, strict: bool = False) -> dict:
-    """Call Groq with optional strict retry."""
     system = STRICT_PROMPT if strict else SYSTEM_PROMPT
     full_messages = [{"role": "system", "content": system}] + messages
     response = client.chat.completions.create(
@@ -141,7 +154,13 @@ async def call_groq(messages: list, strict: bool = False) -> dict:
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "PrivateCredit AI", "version": "1.1.0", "model": GROQ_MODEL}
+    return {
+        "status": "healthy",
+        "service": "PrivateCredit AI",
+        "version": "1.2.0",
+        "model": GROQ_MODEL,
+        "attestations_stored": len(attestation_store)
+    }
 
 
 @app.post("/score", response_model=CreditScore)
@@ -202,7 +221,7 @@ Respond with JSON only."""
 
 @app.post("/attest", response_model=AttestationResult)
 async def create_midnight_attestation(request: AttestationRequest):
-    """Create + persist ZK attestation. Proves score >= threshold, never reveals score."""
+    """Create + persist ZK attestation to disk. Survives backend restarts."""
     above_threshold = request.score >= request.threshold
 
     proof_input = f"{request.application_id}:{request.score}:{request.threshold}:{above_threshold}"
@@ -217,15 +236,16 @@ async def create_midnight_attestation(request: AttestationRequest):
     on_chain = hashlib.sha256(json.dumps(attestation_data).encode()).hexdigest()
     ts = int(time.time())
 
-    # Persist for lender verification
+    # Persist to memory + disk
     attestation_store[request.application_id] = {
         "above_threshold": above_threshold,
         "zk_proof": zk_proof,
         "on_chain": on_chain,
         "timestamp": ts
     }
+    save_store(attestation_store)
 
-    logger.info(f"Attested | id={request.application_id[:12]}... above={above_threshold}")
+    logger.info(f"Attested | id={request.application_id[:12]}... above={above_threshold} | saved to disk")
 
     return AttestationResult(
         application_id=request.application_id,
@@ -257,6 +277,18 @@ def verify_attestation(application_id: str):
         timestamp=record["timestamp"],
         message="CREDITWORTHY" if record["above_threshold"] else "BELOW THRESHOLD"
     )
+
+
+@app.get("/attestations")
+def list_attestations():
+    """Dev/debug endpoint: list all stored attestation IDs and timestamps."""
+    return {
+        "count": len(attestation_store),
+        "attestations": [
+            {"id": k[:16] + "...", "above_threshold": v["above_threshold"], "timestamp": v["timestamp"]}
+            for k, v in attestation_store.items()
+        ]
+    }
 
 
 if __name__ == "__main__":
