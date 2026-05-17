@@ -1,9 +1,25 @@
-.env
-node_modules/
+# Python
+venv/
 __pycache__/
 *.pyc
-.next/
+*.pyo
+.env
+
+# Attestation store (contains hashes - not sensitive but large)
+# Comment out below line if you want to persist attestations in git
+backend/attestations.json
+
+# Node
+node_modules/
 dist/
 .DS_Store
+
+# Contracts build
+contracts/dist/
 contracts/managed/
-venv/
+contracts/node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
