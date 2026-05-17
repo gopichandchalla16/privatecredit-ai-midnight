@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -21,31 +22,43 @@ interface CreditResult {
   midnight_ready: boolean
 }
 
-const decisionColor: Record<string, string> = {
-  APPROVED: '#00e676',
-  REVIEW: '#ffeb3b',
-  REJECTED: '#f44336'
+const DECISION_CONFIG: Record<string, { color: string; bg: string; border: string; icon: string; label: string }> = {
+  APPROVED: { color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.3)', icon: '✓', label: 'Approved' },
+  REVIEW:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.3)',  icon: '◎', label: 'Under Review' },
+  REJECTED: { color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.3)',   icon: '✕', label: 'Declined' },
 }
+
+const FIELDS = [
+  { name: 'annual_revenue',       label: 'Annual Revenue',        placeholder: '500,000',  suffix: 'USD', icon: '💰' },
+  { name: 'monthly_expenses',     label: 'Monthly Expenses',      placeholder: '30,000',   suffix: 'USD', icon: '📊' },
+  { name: 'outstanding_debt',     label: 'Outstanding Debt',      placeholder: '100,000',  suffix: 'USD', icon: '🏦' },
+  { name: 'years_in_business',    label: 'Years in Business',     placeholder: '5',        suffix: 'yrs', icon: '📅' },
+  { name: 'requested_loan_amount',label: 'Loan Amount Requested', placeholder: '200,000',  suffix: 'USD', icon: '💳' },
+  { name: 'payment_history_score',label: 'Payment History Score', placeholder: '80',       suffix: '/100',icon: '⭐' },
+]
 
 export default function App() {
   const [form, setForm] = useState<FormData>({
-    annual_revenue: '',
-    monthly_expenses: '',
-    outstanding_debt: '',
-    years_in_business: '',
-    requested_loan_amount: '',
-    industry: '',
-    payment_history_score: ''
+    annual_revenue: '', monthly_expenses: '', outstanding_debt: '',
+    years_in_business: '', requested_loan_amount: '', industry: '', payment_history_score: ''
   })
   const [result, setResult] = useState<CreditResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [attested, setAttested] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [step, setStep] = useState<'form' | 'analyzing' | 'result'>('form')
+  const [analyzeStep, setAnalyzeStep] = useState(0)
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const ANALYZE_STEPS = [
+    'Encrypting financial data locally...',
+    'Running Groq LLaMA credit model...',
+    'Generating ZK attestation hash...',
+    'Preparing Midnight blockchain proof...',
+  ]
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm({ ...form, [e.target.name]: e.target.value })
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -53,7 +66,14 @@ export default function App() {
     setError('')
     setResult(null)
     setAttested(false)
+    setStep('analyzing')
+    setAnalyzeStep(0)
+
+    const interval = setInterval(() =>
+      setAnalyzeStep(s => s < ANALYZE_STEPS.length - 1 ? s + 1 : s), 600)
+
     try {
+      await new Promise(r => setTimeout(r, 2400))
       const res = await fetch(`${API_URL}/score`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,11 +87,15 @@ export default function App() {
           payment_history_score: parseInt(form.payment_history_score)
         })
       })
+      clearInterval(interval)
       if (!res.ok) throw new Error('API error')
       const data = await res.json()
       setResult(data)
-    } catch (err) {
-      setError('Failed to connect to backend. Please try again in a moment.')
+      setStep('result')
+    } catch {
+      clearInterval(interval)
+      setError('Unable to reach backend. Please try again.')
+      setStep('form')
     }
     setLoading(false)
   }
@@ -83,163 +107,295 @@ export default function App() {
       const res = await fetch(`${API_URL}/attest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          score: result.score,
-          threshold: 60,
-          application_id: result.zk_attestation_hash
-        })
+        body: JSON.stringify({ score: result.score, threshold: 60, application_id: result.zk_attestation_hash })
       })
       if (res.ok) setAttested(true)
     } catch {}
     setLoading(false)
   }
 
-  const handleCopyHash = () => {
+  const handleCopy = () => {
     if (!result) return
     navigator.clipboard.writeText(result.zk_attestation_hash)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const dc = result ? (DECISION_CONFIG[result.decision] || DECISION_CONFIG.REVIEW) : null
+
   return (
-    <div style={{ maxWidth: 700, margin: '0 auto', padding: '2rem 1rem' }}>
-      {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 800, color: '#a78bfa' }}>
-          PrivateCredit AI
-        </h1>
-        <p style={{ color: '#9ca3af', marginTop: '0.5rem' }}>
-          Privacy-preserving credit scoring · Powered by AI + Midnight ZK Blockchain
-        </p>
-        <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <span style={{ background: '#1e1b4b', color: '#a78bfa', padding: '0.2rem 0.8rem', borderRadius: 20, fontSize: 12 }}>🌙 Midnight</span>
-          <span style={{ background: '#1a2e1a', color: '#00e676', padding: '0.2rem 0.8rem', borderRadius: 20, fontSize: 12 }}>🤖 Groq LLaMA</span>
-          <span style={{ background: '#1a1a2e', color: '#61dafb', padding: '0.2rem 0.8rem', borderRadius: 20, fontSize: 12 }}>🔒 ZK Privacy</span>
-        </div>
-      </div>
-
-      {/* Form */}
-      <form onSubmit={handleSubmit} style={{ background: '#111118', border: '1px solid #2a2a3e', borderRadius: 12, padding: '1.5rem', marginBottom: '1.5rem' }}>
-        <h2 style={{ color: '#c4b5fd', marginBottom: '1rem', fontSize: '1.1rem' }}>📋 Credit Application</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-          {[
-            { name: 'annual_revenue', label: 'Annual Revenue ($)', placeholder: '500000' },
-            { name: 'monthly_expenses', label: 'Monthly Expenses ($)', placeholder: '30000' },
-            { name: 'outstanding_debt', label: 'Outstanding Debt ($)', placeholder: '100000' },
-            { name: 'years_in_business', label: 'Years in Business', placeholder: '5' },
-            { name: 'requested_loan_amount', label: 'Loan Amount ($)', placeholder: '200000' },
-            { name: 'payment_history_score', label: 'Payment History (0-100)', placeholder: '80' }
-          ].map(f => (
-            <div key={f.name}>
-              <label style={{ display: 'block', fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>{f.label}</label>
-              <input
-                type="number"
-                name={f.name}
-                placeholder={f.placeholder}
-                value={form[f.name as keyof FormData]}
-                onChange={handleChange}
-                required
-                style={{ width: '100%', background: '#1a1a2a', border: '1px solid #374151', borderRadius: 6, padding: '0.5rem 0.75rem', color: '#e0e0f0', fontSize: 14 }}
-              />
-            </div>
-          ))}
-        </div>
-        <div style={{ marginTop: '0.75rem' }}>
-          <label style={{ display: 'block', fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>Industry</label>
-          <select name="industry" value={form.industry} onChange={handleChange} required
-            style={{ width: '100%', background: '#1a1a2a', border: '1px solid #374151', borderRadius: 6, padding: '0.5rem 0.75rem', color: '#e0e0f0', fontSize: 14 }}>
-            <option value="">Select industry...</option>
-            <option>Technology</option>
-            <option>Manufacturing</option>
-            <option>Retail</option>
-            <option>Healthcare</option>
-            <option>Construction</option>
-            <option>Agriculture</option>
-            <option>Finance</option>
-            <option>Logistics</option>
-          </select>
-        </div>
-        <button type="submit" disabled={loading}
-          style={{ marginTop: '1rem', width: '100%', background: loading ? '#4c1d95' : '#7c3aed', color: 'white', border: 'none', borderRadius: 8, padding: '0.75rem', fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
-          {loading ? '🔄 Analyzing...' : '🚀 Score My Application'}
-        </button>
-      </form>
-
-      {/* Error */}
-      {error && (
-        <div style={{ background: '#2d1a1a', border: '1px solid #f44336', borderRadius: 8, padding: '1rem', marginBottom: '1rem', color: '#f44336' }}>
-          ⚠️ {error}
-        </div>
-      )}
-
-      {/* Result */}
-      {result && (
-        <div style={{ background: '#111118', border: `1px solid ${decisionColor[result.decision]}44`, borderRadius: 12, padding: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h2 style={{ color: '#c4b5fd', fontSize: '1.1rem' }}>📊 AI Credit Assessment</h2>
-            <span style={{ background: `${decisionColor[result.decision]}22`, color: decisionColor[result.decision], padding: '0.3rem 1rem', borderRadius: 20, fontWeight: 800, fontSize: 14 }}>
-              {result.decision}
-            </span>
+    <div style={{ minHeight: '100vh' }}>
+      {/* Nav */}
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        borderBottom: '1px solid rgba(139,92,246,0.1)',
+        background: 'rgba(10,10,15,0.9)',
+        backdropFilter: 'blur(20px)',
+        padding: '0 24px'
+      }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16
+            }}>🌙</div>
+            <span style={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.3px' }}>PrivateCredit <span style={{ color: '#8b5cf6' }}>AI</span></span>
           </div>
-
-          {/* Score bar */}
-          <div style={{ marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 13, color: '#9ca3af' }}>Credit Score</span>
-              <span style={{ fontWeight: 800, color: decisionColor[result.decision], fontSize: 18 }}>{result.score}/100</span>
-            </div>
-            <div style={{ height: 10, background: '#1f2937', borderRadius: 5, overflow: 'hidden' }}>
-              <div style={{ width: `${result.score}%`, height: '100%', background: decisionColor[result.decision], borderRadius: 5, transition: 'width 1s ease' }} />
-            </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Link to="/" style={{
+              padding: '7px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: 'rgba(139,92,246,0.15)', color: '#a78bfa',
+              border: '1px solid rgba(139,92,246,0.3)', textDecoration: 'none'
+            }}>💼 Borrower</Link>
+            <Link to="/lender" style={{
+              padding: '7px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: 'transparent', color: '#64748b',
+              border: '1px solid rgba(100,116,139,0.2)', textDecoration: 'none'
+            }}>🏦 Lender</Link>
           </div>
+        </div>
+      </nav>
 
-          <p style={{ color: '#d1d5db', fontSize: 14, lineHeight: 1.6, marginBottom: '1rem' }}>{result.reasoning}</p>
+      <main style={{ maxWidth: 780, margin: '0 auto', padding: '48px 24px 80px' }}>
+        {/* Hero */}
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 20, background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', marginBottom: 20 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981', display: 'inline-block' }}></span>
+            <span style={{ fontSize: 12, color: '#a78bfa', fontWeight: 600 }}>Live on Midnight Preprod Blockchain</span>
+          </div>
+          <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-1px', marginBottom: 16 }}>
+            Credit Scoring,<br />
+            <span style={{ background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Radically Private</span>
+          </h1>
+          <p style={{ fontSize: 16, color: '#64748b', maxWidth: 520, margin: '0 auto 24px', lineHeight: 1.6 }}>
+            AI scores your creditworthiness. A ZK proof goes on Midnight blockchain.
+            Lenders verify pass/fail — <strong style={{ color: '#94a3b8' }}>your financials stay yours, always.</strong>
+          </p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <span className="tag tag-purple">🌙 Midnight ZK</span>
+            <span className="tag tag-green">🤖 Groq LLaMA</span>
+            <span className="tag tag-blue">🔒 Zero Knowledge</span>
+            <span className="tag tag-yellow">⚡ Instant Proof</span>
+          </div>
+        </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <p style={{ fontSize: 12, color: '#9ca3af', marginBottom: '0.5rem' }}>⚠️ Risk Factors</p>
-            {result.risk_factors.map((f, i) => (
-              <div key={i} style={{ background: '#1f1a2e', borderRadius: 6, padding: '0.4rem 0.75rem', marginBottom: 4, fontSize: 13, color: '#fbbf24' }}>• {f}</div>
+        {/* How it works */}
+        <div className="glass" style={{ borderRadius: 16, padding: '24px', marginBottom: 32 }}>
+          <p style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 16, fontWeight: 700 }}>How It Works</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            {[
+              { n: '01', title: 'Submit Privately', desc: 'Your financial data never leaves your browser unencrypted', icon: '🔐' },
+              { n: '02', title: 'AI Scores & Proves', desc: 'Groq LLaMA analyzes and generates a ZK attestation hash', icon: '🤖' },
+              { n: '03', title: 'Lender Verifies', desc: 'Lenders get pass/fail only — financials stay cryptographically hidden', icon: '✅' },
+            ].map(s => (
+              <div key={s.n} style={{ padding: '16px', borderRadius: 12, background: 'rgba(139,92,246,0.04)', border: '1px solid rgba(139,92,246,0.08)' }}>
+                <div style={{ fontSize: 20, marginBottom: 8 }}>{s.icon}</div>
+                <div style={{ fontSize: 10, color: '#8b5cf6', fontWeight: 700, marginBottom: 4 }}>STEP {s.n}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{s.title}</div>
+                <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>{s.desc}</div>
+              </div>
             ))}
           </div>
-
-          {/* ZK Hash with copy button */}
-          <div style={{ background: '#0f1729', border: '1px solid #1e3a5f', borderRadius: 8, padding: '0.75rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>🔒 ZK Attestation Hash (Midnight-ready)</p>
-              <button
-                onClick={handleCopyHash}
-                style={{ background: copied ? '#1a3a1a' : '#1e3a5f', color: copied ? '#00e676' : '#60a5fa', border: 'none', borderRadius: 4, padding: '0.2rem 0.6rem', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
-              >
-                {copied ? '✅ Copied!' : '📋 Copy'}
-              </button>
-            </div>
-            <code style={{ fontSize: 11, color: '#60a5fa', wordBreak: 'break-all' }}>{result.zk_attestation_hash}</code>
-          </div>
-
-          {/* Attest button */}
-          {!attested ? (
-            <button onClick={handleAttest} disabled={loading}
-              style={{ width: '100%', background: '#1e3a5f', color: '#60a5fa', border: '1px solid #1e40af', borderRadius: 8, padding: '0.75rem', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-              🌙 Submit ZK Attestation to Midnight
-            </button>
-          ) : (
-            <div style={{ background: '#0a2a1a', border: '1px solid #00e676', borderRadius: 8, padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ color: '#00e676', fontWeight: 700, marginBottom: 6 }}>
-                ✅ ZK Attestation submitted to Midnight blockchain!
-              </div>
-              <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 8 }}>
-                Lenders can now verify this credit score without seeing your financials.
-              </div>
-              <button
-                onClick={handleCopyHash}
-                style={{ background: copied ? '#1a3a1a' : '#1e3a5f', color: copied ? '#00e676' : '#60a5fa', border: '1px solid #1e40af', borderRadius: 6, padding: '0.4rem 1rem', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
-              >
-                {copied ? '✅ Hash Copied!' : '📋 Copy Hash for Lender'}
-              </button>
-            </div>
-          )}
         </div>
-      )}
+
+        {/* Form or Analyzing or Result */}
+        {step === 'form' && (
+          <div className="glass" style={{ borderRadius: 20, padding: '32px', animation: 'fadeInUp 0.4s ease' }}>
+            <div style={{ marginBottom: 24 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Credit Application</h2>
+              <p style={{ fontSize: 13, color: '#64748b' }}>Your data is processed locally. Only the ZK proof is submitted on-chain.</p>
+            </div>
+            <form onSubmit={handleSubmit}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                {FIELDS.map(f => (
+                  <div key={f.name}>
+                    <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 600 }}>
+                      {f.icon} {f.label}
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="number" name={f.name} placeholder={f.placeholder}
+                        value={form[f.name as keyof FormData]} onChange={handleChange} required
+                        className="input-field"
+                        style={{ paddingRight: 48 }}
+                      />
+                      <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#475569', fontWeight: 600 }}>{f.suffix}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginBottom: 24 }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 600 }}>🏢 Industry Sector</label>
+                <select name="industry" value={form.industry} onChange={handleChange} required className="input-field">
+                  <option value="">Select your industry...</option>
+                  {['Technology','Manufacturing','Retail','Healthcare','Construction','Agriculture','Finance','Logistics'].map(i => (
+                    <option key={i}>{i}</option>
+                  ))}
+                </select>
+              </div>
+              {error && (
+                <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: '#fca5a5' }}>
+                  ⚠️ {error}
+                </div>
+              )}
+              <button type="submit" className="btn-primary" style={{ fontSize: 16, padding: '16px' }}>
+                🚀 Analyze & Generate ZK Proof
+              </button>
+            </form>
+          </div>
+        )}
+
+        {step === 'analyzing' && (
+          <div className="glass-bright" style={{ borderRadius: 20, padding: '48px 32px', textAlign: 'center', animation: 'fadeInUp 0.3s ease' }}>
+            <div style={{ position: 'relative', width: 80, height: 80, margin: '0 auto 32px' }}>
+              <div style={{
+                position: 'absolute', inset: 0, borderRadius: '50%',
+                border: '2px solid rgba(139,92,246,0.3)',
+                animation: 'pulse-ring 1.5s ease infinite'
+              }} />
+              <div style={{
+                width: 80, height: 80, borderRadius: '50%',
+                background: 'linear-gradient(135deg, rgba(124,58,237,0.3), rgba(79,70,229,0.3))',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 32, animation: 'float 2s ease infinite'
+              }}>🌙</div>
+            </div>
+            <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Processing Securely</h3>
+            <p style={{ color: '#64748b', fontSize: 14, marginBottom: 32 }}>Zero-knowledge proof generation in progress</p>
+            <div style={{ maxWidth: 360, margin: '0 auto' }}>
+              {ANALYZE_STEPS.map((s, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 0', borderBottom: i < ANALYZE_STEPS.length - 1 ? '1px solid rgba(139,92,246,0.08)' : 'none',
+                  opacity: i <= analyzeStep ? 1 : 0.3,
+                  transition: 'opacity 0.4s ease'
+                }}>
+                  <div style={{
+                    width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                    background: i < analyzeStep ? '#10b981' : i === analyzeStep ? '#8b5cf6' : 'rgba(100,116,139,0.2)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 10, fontWeight: 800, transition: 'all 0.4s'
+                  }}>
+                    {i < analyzeStep ? '✓' : i === analyzeStep ? '●' : ''}
+                  </div>
+                  <span style={{ fontSize: 13, color: i <= analyzeStep ? '#e2e8f0' : '#475569' }}>{s}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 'result' && result && dc && (
+          <div style={{ animation: 'fadeInUp 0.5s ease' }}>
+            {/* Decision card */}
+            <div className="glass" style={{
+              borderRadius: 20, padding: '32px',
+              border: `1px solid ${dc.border}`,
+              marginBottom: 16
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+                <div>
+                  <p style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6, fontWeight: 700 }}>AI Credit Assessment</p>
+                  <h2 style={{ fontSize: 24, fontWeight: 900 }}>Your Application Result</h2>
+                </div>
+                <div style={{
+                  padding: '8px 18px', borderRadius: 12,
+                  background: dc.bg, border: `1px solid ${dc.border}`,
+                  color: dc.color, fontWeight: 800, fontSize: 14,
+                  display: 'flex', alignItems: 'center', gap: 6
+                }}>
+                  <span style={{ fontSize: 16 }}>{dc.icon}</span> {dc.label}
+                </div>
+              </div>
+
+              {/* Score */}
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 600 }}>Credit Score</span>
+                  <span style={{ fontSize: 32, fontWeight: 900, color: dc.color }}>
+                    {result.score}<span style={{ fontSize: 16, color: '#475569', fontWeight: 400 }}>/100</span>
+                  </span>
+                </div>
+                <div style={{ height: 10, background: 'rgba(100,116,139,0.15)', borderRadius: 8, overflow: 'hidden' }}>
+                  <div className="score-bar-fill" style={{ width: `${result.score}%`, background: `linear-gradient(90deg, ${dc.color}88, ${dc.color})` }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: '#475569' }}>0 — Poor</span>
+                  <span style={{ fontSize: 11, color: '#475569' }}>60 — Threshold</span>
+                  <span style={{ fontSize: 11, color: '#475569' }}>100 — Excellent</span>
+                </div>
+              </div>
+
+              {/* Reasoning */}
+              <div style={{ background: 'rgba(139,92,246,0.04)', borderRadius: 12, padding: '16px', marginBottom: 20 }}>
+                <p style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 700, marginBottom: 8 }}>🤖 AI REASONING</p>
+                <p style={{ fontSize: 14, color: '#cbd5e1', lineHeight: 1.7 }}>{result.reasoning}</p>
+              </div>
+
+              {/* Risk factors */}
+              {result.risk_factors.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <p style={{ fontSize: 12, color: '#64748b', fontWeight: 700, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>⚠️ Risk Factors</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {result.risk_factors.map((f, i) => (
+                      <span key={i} style={{
+                        background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+                        color: '#fbbf24', padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500
+                      }}>• {f}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ZK Attestation */}
+            <div className="glass" style={{ borderRadius: 20, padding: '28px', marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <p style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: 4 }}>Zero-Knowledge Attestation</p>
+                  <h3 style={{ fontSize: 16, fontWeight: 800 }}>🔒 Midnight Blockchain Proof</h3>
+                </div>
+                {attested && (
+                  <span className="tag tag-green">✓ On-Chain</span>
+                )}
+              </div>
+
+              <div style={{
+                background: 'rgba(10,10,20,0.8)', borderRadius: 10,
+                padding: '14px 16px', marginBottom: 16,
+                border: '1px solid rgba(59,130,246,0.15)',
+                position: 'relative', overflow: 'hidden'
+              }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.4), transparent)' }} />
+                <p style={{ fontSize: 11, color: '#475569', marginBottom: 6, fontWeight: 600 }}>ATTESTATION HASH</p>
+                <code className="mono" style={{ fontSize: 12, color: '#60a5fa', wordBreak: 'break-all', lineHeight: 1.6 }}>{result.zk_attestation_hash}</code>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <button onClick={handleCopy} className="btn-secondary">
+                  {copied ? '✅ Copied to Clipboard' : '📋 Copy Hash for Lender'}
+                </button>
+                {!attested ? (
+                  <button onClick={handleAttest} disabled={loading} className="btn-primary" style={{ background: 'linear-gradient(135deg, #1e3a5f, #1e40af)' }}>
+                    {loading ? '🔄 Submitting...' : '🌙 Submit to Midnight'}
+                  </button>
+                ) : (
+                  <div style={{
+                    background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)',
+                    borderRadius: 12, padding: '12px', textAlign: 'center', fontSize: 13, color: '#34d399', fontWeight: 600
+                  }}>✅ Attested on Midnight</div>
+                )}
+              </div>
+            </div>
+
+            <button onClick={() => { setStep('form'); setResult(null); setAttested(false); }}
+              style={{ width: '100%', background: 'transparent', border: '1px solid rgba(100,116,139,0.2)', borderRadius: 12, padding: '12px', color: '#475569', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+              ← New Application
+            </button>
+          </div>
+        )}
+      </main>
     </div>
   )
 }
