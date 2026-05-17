@@ -178,21 +178,15 @@ The `actual_score` is a **private witness** — it exists inside the ZK proof co
 ### Getting tDUST for Real Deployment
 
 ```bash
-# 1. Install Midnight wallet CLI
-npm install -g @midnight-ntwrk/wallet-cli
-
-# 2. Create wallet
-midnight-wallet create
-
-# 3. Get your wallet address
-midnight-wallet address
-
-# 4. Get free tDUST from faucet
+# 1. Get tDUST from faucet
 # Go to: https://faucet.preprod.midnight.network/
 # Paste your wallet address
 # Receive tDUST in ~30 seconds
 
-# 5. Fund your deploy script
+# 2. Or generate programmatically:
+# https://docs.midnight.network/guides/generating-dust-programmatically
+
+# 3. Deploy to Midnight testnet
 export MIDNIGHT_WALLET_SEED=your_seed_phrase
 cd contracts && npm run deploy
 ```
@@ -412,12 +406,20 @@ PrivateCredit AI is viable as a real business:
 
 ---
 
-## 👤 Team
+## 👥 Team
 
 **Gopichand Challa** — AI × Web3 Developer
+- Devpost: [@gopichandchalla516](https://devpost.com/gopichandchalla516)
 - GitHub: [@gopichandchalla16](https://github.com/gopichandchalla16)
 - Building AI × Web3 in public
-- Built during MLH Midnight Hackathon 2026
+
+**Rakesh Kalisetty** — Developer
+- Devpost: [@rakeshkalisetty45678](https://devpost.com/rakeshkalisetty45678)
+
+**Kaviya Murugadass** — Developer
+- Devpost: [@Kaviyamurugadass](https://devpost.com/Kaviyamurugadass)
+
+> Built together during **MLH Midnight Hackathon 2026** 🌙
 
 ---
 
